@@ -1,0 +1,53 @@
+from google.colab import drive
+drive.mount('/content/drive')
+
+
+# Importar bibliotecas necessárias
+import gdown
+import rasterio
+import numpy as np
+
+# Baixar o arquivo .tif do Google Drive
+url = 'https://drive.google.com/uc?export=download&id=1BrtGByxXu5xqBGOvSBmPWkb_YGZagHav'
+output = 'imagem_satellite.tif'
+gdown.download(url, output, quiet=False)
+
+# Função para processar a imagem em blocos
+def process_image_in_chunks(file_path):
+    total_pixels = 0
+    pixels_sem_dados = 0
+    pixels_soja = 0
+    pixels_pastagem = 0
+
+    with rasterio.open(file_path) as src:
+        # Iterar sobre a imagem em blocos
+        for ji, window in src.block_windows(1):  # 1 indica a primeira banda
+            img_data = src.read(1, window=window)
+
+            # Atualizar as contagens de pixels
+            total_pixels += img_data.size
+            pixels_sem_dados += np.sum(img_data == 0)
+            pixels_soja += np.sum(img_data == 39)
+            pixels_pastagem += np.sum(img_data == 15)
+
+    return total_pixels, pixels_sem_dados, pixels_soja, pixels_pastagem
+
+# Processar a imagem em blocos
+total_pixels, pixels_sem_dados, pixels_soja, pixels_pastagem = process_image_in_chunks(output)
+
+# Calcular as áreas (em hectares) - considerando uma resolução de 1 pixel = 30m x 30m (típico para imagens de satélite)
+resolucao_pixel_m2 = 30 * 30  # 30m x 30m por pixel
+resolucao_pixel_ha = resolucao_pixel_m2 / 10000  # 1 hectare = 10,000m²
+
+# Calcular áreas em hectares
+area_soja_ha = pixels_soja * resolucao_pixel_ha
+area_pastagem_ha = pixels_pastagem * resolucao_pixel_ha
+
+# Mostrar resultados
+print(f"Quantidade total de pixels: {total_pixels}")
+print(f"Quantidade de pixels sem dados (código 0): {pixels_sem_dados}")
+print(f"Quantidade de pixels de plantio de soja (código 39): {pixels_soja}")
+print(f"Quantidade de pixels de pastagem (código 15): {pixels_pastagem}")
+
+print(f"\nÁrea de plantio de soja: {area_soja_ha:.2f} hectares, correspondendo a {pixels_soja} pixels")
+print(f"Área de cobertura de pastagem: {area_pastagem_ha:.2f} hectares, correspondendo a {pixels_pastagem} pixels")
